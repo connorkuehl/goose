@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS feeds (
+    id BIGSERIAL PRIMARY KEY,
+    link TEXT NOT NULL,
+    not_until TIMESTAMP WITH TIME ZONE NOT NULL,
+    UNIQUE(link)
+);

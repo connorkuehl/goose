@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS articles (
+    id BIGSERIAL PRIMARY KEY,
+    feed_id BIGSERIAL NOT NULL,
+    title TEXT NOT NULL,
+    link TEXT NOT NULL,
+    pub_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    UNIQUE(link),
+    CONSTRAINT fkey_feed FOREIGN KEY(feed_id) REFERENCES feeds(id)
+);
