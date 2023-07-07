@@ -270,13 +270,13 @@ func (b *Bot) RefreshFeeds(ctx context.Context) error {
 	for _, feed := range feeds {
 		req, err := http.NewRequest(http.MethodGet, feed.Link, strings.NewReader(""))
 		if err != nil {
-			log.Printf("[WARN] Form GET [%s]: %v", feed.Link)
+			log.Printf("[WARN] Form GET [%s]: %v", feed.Link, err)
 			continue
 		}
 
 		rsp, err := b.httpClient.Do(req)
 		if err != nil {
-			log.Printf("[WARN] GET [%s]: %v", err)
+			log.Printf("[WARN] GET [%s]: %v", feed.Link, err)
 			continue
 		}
 		defer rsp.Body.Close()
