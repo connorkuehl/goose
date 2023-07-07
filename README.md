@@ -29,3 +29,46 @@ slash commands.
 Outside of that, goose will automatically announce new items on feeds
 that the server is subscribed to.
 
+## Building
+
+Prerequisites:
+
+1. A Go toolchain
+
+Simply run `go build`.
+
+## Running
+
+Prerequisites:
+
+1. Valid Discord bot token with the "bot" and "application.commands"
+scopes
+1. PostgreSQL database
+1. goose binary (see "Building")
+1. [golang-migrate](https://github.com/golang-migrate/migrate)
+
+Once you have a valid Postgres DSN, make sure you run the migrations
+with [golang-migrate](https://github.com/golang-migrate/migrate)so that
+all of the tables are set up:
+
+```console
+$ migrate -database=$GOOSE_POSTGRES_DSN -path ./migrations/postgres up
+```
+
+goose needs to be configured to use the Discord token and a valid
+Postgres DSN. You can supply these at the command line:
+
+```console
+$ goose -discord-token <SECRET_BOT_DISCORD_TOKEN> \
+        -postgres-dsn <SECRET_POSTGRES_DSN>
+```
+
+Or you can supply them as environment variables. These override any values
+set at the command line:
+
+```console
+$ export GOOSE_DISCORD_TOKEN="SECRET_BOT_DISCORD_TOKEN"
+$ export GOOSE_POSTGRES_DSN="postgres://goose:goose@localhost:55432/goose?sslmode=disable"
+$ goose
+```
+
