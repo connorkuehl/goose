@@ -401,7 +401,7 @@ func calculateNotUntil(r *http.Response, now time.Time) time.Time {
 		switch strings.ToLower(k) {
 		case "max-age":
 			maxAge = parseInt64OrDefault(v, defaultCache)
-		case "s-max-age":
+		case "s-maxage":
 			sMaxAge = parseInt64OrDefault(v, defaultCache)
 		default:
 			// no-op
