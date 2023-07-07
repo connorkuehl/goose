@@ -48,7 +48,7 @@ scopes
 1. [golang-migrate](https://github.com/golang-migrate/migrate)
 
 Once you have a valid Postgres DSN, make sure you run the migrations
-with [golang-migrate](https://github.com/golang-migrate/migrate)so that
+with [golang-migrate](https://github.com/golang-migrate/migrate) so that
 all of the tables are set up:
 
 ```console
