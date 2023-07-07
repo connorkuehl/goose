@@ -2,6 +2,15 @@
 
 Discord bot that announces new items on RSS feeds 🪿 _honk!_
 
+⚠️ Not appropriate for production use ⚠️
+
+This application is not designed to scale horizontally:
+
+* Discord bot sharding is not implemented
+* Notification persisted state is stored in a table and not a queue,
+so if there was another goose process running there's a big chance
+they would race and potentially duplicate notifications.
+
 ## Usage
 
 When goose is first added to the server, it will install the following
