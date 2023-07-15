@@ -172,6 +172,10 @@ func (b *Bot) Test(s *discordgo.Session, i *discordgo.Interaction) {
 	switch {
 	case err == nil:
 		err = b.rateLimiter.Wait(context.Background())
+		if err != nil {
+			log.Printf("[WARN] Waiting for rate limit: %v", err)
+			return
+		}
 
 		message := fmt.Sprintf("🪿 TEST HONK! Here's the latest item from the %q collection: %s", collection, link)
 		err := b.respondToInteraction(s, i, message)
