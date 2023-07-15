@@ -170,6 +170,4 @@ func run(ctx context.Context) error {
 			_ = bot.RefreshFeeds(ctx)
 		}
 	}
-
-	return nil
 }
