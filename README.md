@@ -41,7 +41,7 @@ Simply run `go build`.
 
 Prerequisites:
 
-1. Valid Discord bot token with the "bot" and "application.commands"
+1. Valid Discord bot token with the "bot" and "applications.commands"
 scopes
 1. PostgreSQL database
 1. goose binary (see "Building")
