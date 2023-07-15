@@ -45,10 +45,10 @@ Prerequisites:
 scopes
 1. PostgreSQL database
 1. goose binary (see "Building")
-1. [golang-migrate](https://github.com/golang-migrate/migrate)
+1. [migrate](https://github.com/golang-migrate/migrate)
 
 Once you have a valid Postgres DSN, make sure you run the migrations
-with [golang-migrate](https://github.com/golang-migrate/migrate) so that
+with [migrate](https://github.com/golang-migrate/migrate) so that
 all of the tables are set up:
 
 ```console
