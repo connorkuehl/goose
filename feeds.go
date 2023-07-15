@@ -24,7 +24,7 @@ func (f *Feeds) Create(link *url.URL, notUntil time.Time) (*Feed, error) {
 	args := []any{link.String(), notUntil}
 
 	var (
-		created = new(Feed)
+		created Feed
 		pqerr   *pq.Error
 	)
 	err := f.DB.QueryRow(stmt, args...).Scan(&created.ID, &created.Link, &created.NotUntil)
@@ -35,7 +35,7 @@ func (f *Feeds) Create(link *url.URL, notUntil time.Time) (*Feed, error) {
 		return nil, err
 	}
 
-	return created, nil
+	return &created, nil
 }
 
 func (f *Feeds) ListReady(readyAfter time.Time) ([]Feed, error) {
@@ -68,7 +68,7 @@ func (f *Feeds) GetByLink(link string) (*Feed, error) {
 	stmt := `SELECT id, link, not_until FROM feeds WHERE link = $1`
 	args := []any{link}
 
-	fetched := new(Feed)
+	var fetched Feed
 
 	err := f.DB.QueryRow(stmt, args...).Scan(&fetched.ID, &fetched.Link, &fetched.NotUntil)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -78,7 +78,7 @@ func (f *Feeds) GetByLink(link string) (*Feed, error) {
 		return nil, err
 	}
 
-	return fetched, nil
+	return &fetched, nil
 }
 
 func (f *Feeds) Update(feed *Feed) error {

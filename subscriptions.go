@@ -36,7 +36,7 @@ func (s *Subscriptions) Create(feedID int64, serverID, channelID, collection str
 	stmt := `INSERT INTO subscriptions (feed_id, server_id, channel_id, collection_name, last_pub_date) VALUES ($1, $2, $3, $4, $5) RETURNING id, feed_id, server_id, channel_id, collection_name, last_pub_date`
 	args := []any{feedID, serverID, channelID, collection, lastPubDate}
 
-	sub := &Subscription{}
+	var sub Subscription
 	var pqerr *pq.Error
 
 	err := s.db.QueryRow(stmt, args...).Scan(&sub.ID, &sub.FeedID, &sub.ServerID, &sub.ChannelID, &sub.CollectionName, &sub.LastPubDate)
@@ -47,7 +47,7 @@ func (s *Subscriptions) Create(feedID int64, serverID, channelID, collection str
 		return nil, err
 	}
 
-	return sub, nil
+	return &sub, nil
 }
 
 func (s *Subscriptions) UpdateLastPubDate(id int64, lastPubDate time.Time) error {
@@ -63,7 +63,7 @@ func (s *Subscriptions) GetByCollectionName(serverID, collectionName string) (*S
 	stmt := `SELECT id, feed_id, server_id, channel_id, collection_name, last_pub_date FROM subscriptions WHERE server_id = $1 AND collection_name = $2`
 	args := []any{serverID, collectionName}
 
-	sub := &Subscription{}
+	var sub Subscription
 
 	err := s.db.QueryRow(stmt, args...).Scan(&sub.ID, &sub.FeedID, &sub.ServerID, &sub.ChannelID, &sub.CollectionName, &sub.LastPubDate)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -73,7 +73,7 @@ func (s *Subscriptions) GetByCollectionName(serverID, collectionName string) (*S
 		return nil, err
 	}
 
-	return sub, nil
+	return &sub, nil
 }
 
 func (s *Subscriptions) Delete(id int64) error {

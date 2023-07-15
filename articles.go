@@ -25,7 +25,7 @@ func (a *Articles) Create(feedID int64, title string, link *url.URL, published t
 	stmt := `INSERT INTO articles (feed_id, title, link, pub_date) VALUES ($1, $2, $3, $4) RETURNING id, feed_id, title, link, pub_date`
 	args := []any{feedID, title, link.String(), published}
 
-	art := &Article{}
+	var art Article
 	var pqerr *pq.Error
 
 	err := a.db.QueryRow(stmt, args...).Scan(&art.ID, &art.FeedID, &art.Title, &art.Link, &art.Published)
@@ -36,14 +36,14 @@ func (a *Articles) Create(feedID int64, title string, link *url.URL, published t
 		return nil, err
 	}
 
-	return art, nil
+	return &art, nil
 }
 
 func (a *Articles) Latest(feedID int64) (*Article, error) {
 	stmt := `SELECT id, feed_id, title, link, pub_date FROM articles WHERE feed_id = $1 ORDER BY pub_date DESC`
 	args := []any{feedID}
 
-	art := &Article{}
+	var art Article
 	err := a.db.QueryRow(stmt, args...).Scan(&art.ID, &art.FeedID, &art.Title, &art.Link, &art.Published)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -52,5 +52,5 @@ func (a *Articles) Latest(feedID int64) (*Article, error) {
 		return nil, err
 	}
 
-	return art, nil
+	return &art, nil
 }
