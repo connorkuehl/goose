@@ -84,13 +84,13 @@ func (b *Bot) subscribe(link *url.URL, serverID, channelID, collection string) e
 	if errors.Is(err, ErrNotFound) {
 		req, err := http.NewRequest(http.MethodGet, link.String(), strings.NewReader(""))
 		if err != nil {
-			log.Printf("Form GET [%s]: %v", link.String(), err)
+			log.Printf("[ERROR] Form GET [%s]: %v", link.String(), err)
 			return err
 		}
 
 		rsp, err := b.httpClient.Do(req)
 		if err != nil {
-			log.Printf("GET [%s]: %v", link.String(), err)
+			log.Printf("[WARN] GET [%s]: %v", link.String(), err)
 			return err
 		}
 		defer rsp.Body.Close()
@@ -176,21 +176,21 @@ func (b *Bot) Test(s *discordgo.Session, i *discordgo.Interaction) {
 		message := fmt.Sprintf("🪿 TEST HONK! Here's the latest item from the %q collection: %s", collection, link)
 		err := b.respondToInteraction(s, i, message)
 		if err != nil {
-			log.Printf("Failed to respond to interaction: %v", err)
+			log.Printf("[ERROR] Failed to respond to interaction: %v", err)
 			return
 		}
 	case errors.Is(err, ErrNotFound):
 		message := "🪿 NEGATIVE HONK! Did not find a collection with that name."
 		err := b.respondToInteraction(s, i, message)
 		if err != nil {
-			log.Printf("Failed to respond to interaction: %v", err)
+			log.Printf("[ERROR] Failed to respond to interaction: %v", err)
 			return
 		}
 	case errors.Is(err, ErrEmptyFeed):
 		message := "🪿 sad honk... There are no items in that RSS feed."
 		err := b.respondToInteraction(s, i, message)
 		if err != nil {
-			log.Printf("Failed to respond to interaction: %v", err)
+			log.Printf("[ERROR] Failed to respond to interaction: %v", err)
 			return
 		}
 	default:
@@ -352,7 +352,7 @@ func (b *Bot) refreshFeed(feed *Feed, feedContents *gofeed.Feed, since time.Time
 func (b *Bot) respondInternalError(s *discordgo.Session, i *discordgo.Interaction) {
 	err := b.respondToInteraction(s, i, `🪿 ashamed honk. I ran into an issue processing this request. I have failed you. This might be a bug.`)
 	if err != nil {
-		log.Printf("Responding with internal error failed: %v", err)
+		log.Printf("[ERROR] Responding with internal error failed: %v", err)
 	}
 }
 
