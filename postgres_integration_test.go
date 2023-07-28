@@ -228,7 +228,7 @@ func TestIntegrationPostgres(t *testing.T) {
 
 		_, err = subscriptions.Create(feed1.ID, "server1", "channel1", "collection1", time.Date(2, 2, 2, 2, 2, 2, 2, time.UTC))
 		if !errors.Is(err, ErrAlreadyExists) {
-			t.Fatalf("want err=%v, got err=%v when creating duplicate subscription", nil, err)
+			t.Fatalf("want err=%v, got err=%v when creating duplicate subscription", ErrAlreadyExists, err)
 		}
 
 		fetch1, err := subscriptions.GetByCollectionName("server1", "collection1")
@@ -242,7 +242,7 @@ func TestIntegrationPostgres(t *testing.T) {
 
 		_, err = subscriptions.GetByCollectionName("server1", "does not exist")
 		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("want err=%v, got err=%v when fetching non-existent subscription", nil, err)
+			t.Fatalf("want err=%v, got err=%v when fetching non-existent subscription", ErrNotFound, err)
 		}
 
 		err = subscriptions.Delete(sub1.ID)
@@ -252,7 +252,7 @@ func TestIntegrationPostgres(t *testing.T) {
 
 		_, err = subscriptions.GetByCollectionName("server1", "collection1")
 		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("want err=<nil>, got err=%v when fetching deleted subscription", err)
+			t.Fatalf("want err=%v, got err=%v when fetching deleted subscription", ErrNotFound, err)
 		}
 	})
 
@@ -284,7 +284,7 @@ func TestIntegrationPostgres(t *testing.T) {
 
 		_, err = articles.Create(feed1.ID, "The First Amazing Article", u1, time.Date(4, 4, 4, 4, 4, 4, 4, time.UTC))
 		if !errors.Is(err, ErrAlreadyExists) {
-			t.Fatalf("want err=%v, got err=%v when creating duplicate article", err, ErrAlreadyExists)
+			t.Fatalf("want err=%v, got err=%v when creating duplicate article", ErrAlreadyExists, err)
 		}
 
 		latest, err := articles.Latest(feed1.ID)
