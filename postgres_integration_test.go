@@ -243,4 +243,62 @@ func TestIntegrationPostgres(t *testing.T) {
 			t.Fatalf("want err=<nil>, got err=%v when fetching deleted subscription", err)
 		}
 	})
+
+	t.Run("Articles", func(t *testing.T) {
+		feeds := &Feeds{DB: db}
+		articles := Articles{db: db}
+
+		u, err := url.Parse("http://another.example.com?rss")
+		if err != nil {
+			t.Fatalf("url.Parse [%q]: %v", "http://another.example.com?rss", err)
+		}
+
+		feed1, err := feeds.Create(u, time.Date(5, 5, 5, 5, 5, 5, 5, time.UTC))
+		if err != nil {
+			t.Fatalf("feeds.Create: %v", err)
+		}
+
+		u1, err := url.Parse("http://another.example.com/article?id=1")
+		if err != nil {
+			t.Fatalf("url.Parse [%q]: %v", "http://another.example.com/article?id=1", err)
+		}
+
+		art1, err := articles.Create(feed1.ID, "The First Amazing Article", u1, time.Date(4, 4, 4, 4, 4, 4, 4, time.UTC))
+		if err != nil {
+			t.Fatalf("want err=<nil>, got err=%v when creating first article", err)
+		}
+
+		_, err = articles.Create(feed1.ID, "The First Amazing Article", u1, time.Date(4, 4, 4, 4, 4, 4, 4, time.UTC))
+		if !errors.Is(err, ErrAlreadyExists) {
+			t.Fatalf("want err=%v, got err=%v when creating duplicate article", err, ErrAlreadyExists)
+		}
+
+		latest, err := articles.Latest(feed1.ID)
+		if err != nil {
+			t.Fatalf("want err=<nil>, got err=%v when getting latest article for feed", err)
+		}
+
+		if *latest != *art1 {
+			t.Fatalf("want latest article [%+v], got article [%+v]", *art1, *latest)
+		}
+
+		u2, err := url.Parse("http://another.example.com/article?id=12")
+		if err != nil {
+			t.Fatalf("url.Parse [%q]: %v", "http://another.example.com/article?id=12", err)
+		}
+
+		art2, err := articles.Create(feed1.ID, "The next best article", u2, time.Date(5, 5, 5, 5, 5, 5, 5, time.UTC))
+		if err != nil {
+			t.Fatalf("want err=<nil>, got err=%v when creating the second article", err)
+		}
+
+		latest, err = articles.Latest(feed1.ID)
+		if err != nil {
+			t.Fatalf("want err=<nil>, got err=%v when getting the latest article agains", err)
+		}
+
+		if *latest != *art2 {
+			t.Fatalf("want latest Article [%+v], got Article [%+v]", *art2, *latest)
+		}
+	})
 }
