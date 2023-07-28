@@ -8,11 +8,19 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+const migrationsDir = "./migrations/postgres"
+
+var downMigrations = mustConcatSQLFilesIntoString(reverse(mustGlob(migrationsDir + "/*.down.sql")))
+var upMigrations = mustConcatSQLFilesIntoString(mustGlob(migrationsDir + "/*.up.sql"))
 
 func TestIntegrationPostgres(t *testing.T) {
 	dsn := os.Getenv("GOOSE_INTEGRATION_POSTGRES_DSN")
@@ -30,6 +38,8 @@ func TestIntegrationPostgres(t *testing.T) {
 	}
 
 	t.Run("Feeds", func(t *testing.T) {
+		resetDB(t, db)
+
 		feeds := &Feeds{DB: db}
 
 		// There shouldn't be any ready feeds
@@ -178,6 +188,8 @@ func TestIntegrationPostgres(t *testing.T) {
 	})
 
 	t.Run("Subscriptions", func(t *testing.T) {
+		resetDB(t, db)
+
 		feeds := &Feeds{DB: db}
 		subscriptions := &Subscriptions{db: db}
 
@@ -245,6 +257,8 @@ func TestIntegrationPostgres(t *testing.T) {
 	})
 
 	t.Run("Articles", func(t *testing.T) {
+		resetDB(t, db)
+
 		feeds := &Feeds{DB: db}
 		articles := Articles{db: db}
 
@@ -301,4 +315,48 @@ func TestIntegrationPostgres(t *testing.T) {
 			t.Fatalf("want latest Article [%+v], got Article [%+v]", *art2, *latest)
 		}
 	})
+}
+
+func resetDB(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.Exec(downMigrations)
+	if err != nil {
+		t.Fatalf("Down migrations: %v", err)
+	}
+
+	_, err = db.Exec(upMigrations)
+	if err != nil {
+		t.Fatalf("Up migrations: %v", err)
+	}
+}
+
+func mustGlob(pattern string) []string {
+	m, err := filepath.Glob(pattern)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+func reverse(matches []string) []string {
+	sort.Sort(sort.Reverse(sort.StringSlice(matches)))
+	return matches
+}
+
+func mustConcatSQLFilesIntoString(files []string) string {
+	var sb strings.Builder
+
+	for _, f := range files {
+		s, err := os.ReadFile(f)
+		if err != nil {
+			panic(err)
+		}
+
+		_, err = sb.WriteString(string(s))
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return sb.String()
 }
