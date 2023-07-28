@@ -176,4 +176,71 @@ func TestIntegrationPostgres(t *testing.T) {
 			return
 		}
 	})
+
+	t.Run("Subscriptions", func(t *testing.T) {
+		feeds := &Feeds{DB: db}
+		subscriptions := &Subscriptions{db: db}
+
+		u, err := url.Parse("http://another.example.com?rss")
+		if err != nil {
+			t.Fatalf("url.Parse [%q]: %v", "http://another.example.com?rss", err)
+		}
+
+		feed1, err := feeds.Create(u, time.Date(5, 5, 5, 5, 5, 5, 5, time.UTC))
+		if err != nil {
+			t.Fatalf("feeds.Create: %v", err)
+		}
+		defer feeds.Delete(feed1.ID)
+
+		sub1, err := subscriptions.Create(feed1.ID, "server1", "channel1", "collection1", time.Date(2, 2, 2, 2, 2, 2, 2, time.UTC))
+		if err != nil {
+			t.Fatalf("subscriptions.Create: %v", err)
+		}
+		defer subscriptions.Delete(sub1.ID)
+
+		if sub1.FeedID != feed1.ID {
+			t.Fatalf("want FeedID=%d, got FeedID=%d", feed1.ID, sub1.FeedID)
+		}
+
+		if sub1.ServerID != "server1" {
+			t.Fatalf("want ServerID=%q, got ServerID=%q", "server1", sub1.ServerID)
+		}
+
+		if sub1.ChannelID != "channel1" {
+			t.Fatalf("want ChannelID=%q, got ChannelID=%q", "channel1", sub1.ChannelID)
+		}
+
+		if sub1.CollectionName != "collection1" {
+			t.Fatalf("want CollectionName=%q, got CollectionName=%q", "collection1", sub1.CollectionName)
+		}
+
+		_, err = subscriptions.Create(feed1.ID, "server1", "channel1", "collection1", time.Date(2, 2, 2, 2, 2, 2, 2, time.UTC))
+		if !errors.Is(err, ErrAlreadyExists) {
+			t.Fatalf("want err=%v, got err=%v when creating duplicate subscription", nil, err)
+		}
+
+		fetch1, err := subscriptions.GetByCollectionName("server1", "collection1")
+		if err != nil {
+			t.Fatalf("want err=%v, got err=%v when fetching subscription by collection name", nil, err)
+		}
+
+		if *fetch1 != *sub1 {
+			t.Fatalf("want Subscription [%+v], got Subscription [%+v]", *sub1, *fetch1)
+		}
+
+		_, err = subscriptions.GetByCollectionName("server1", "does not exist")
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("want err=%v, got err=%v when fetching non-existent subscription", nil, err)
+		}
+
+		err = subscriptions.Delete(sub1.ID)
+		if err != nil {
+			t.Fatalf("want err=<nil> got err=%v when deleting Subscription", err)
+		}
+
+		_, err = subscriptions.GetByCollectionName("server1", "collection1")
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("want err=<nil>, got err=%v when fetching deleted subscription", err)
+		}
+	})
 }
