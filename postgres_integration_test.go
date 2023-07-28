@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -313,6 +314,89 @@ func TestIntegrationPostgres(t *testing.T) {
 
 		if *latest != *art2 {
 			t.Fatalf("want latest Article [%+v], got Article [%+v]", *art2, *latest)
+		}
+	})
+
+	t.Run("Notifications", func(t *testing.T) {
+		resetDB(t, db)
+
+		feeds := &Feeds{DB: db}
+		subscriptions := &Subscriptions{db: db}
+		articles := &Articles{db: db}
+
+		url1, err := url.Parse("http://example.com?rss")
+		if err != nil {
+			t.Fatalf("url.Parse [%q]: %v", "http://example.com?rss", err)
+		}
+		feed1, err := feeds.Create(url1, time.Time{})
+		if err != nil {
+			t.Fatalf("Create feed: %v", err)
+		}
+
+		sub1, err := subscriptions.Create(feed1.ID, "server1", "channel1", "collection1", time.Time{})
+		if err != nil {
+			t.Fatalf("Create first subscription: %v", err)
+		}
+
+		sub2, err := subscriptions.Create(feed1.ID, "server2", "channel2", "collection2", time.Time{}.AddDate(0, 0, 1))
+		if err != nil {
+			t.Fatalf("Create second subscription: %v", err)
+		}
+
+		newArticles := []Article{
+			{FeedID: feed1.ID, Title: "A", Link: "http://example.com/A", Published: time.Time{}.AddDate(0, 0, 1)},
+			{FeedID: feed1.ID, Title: "B", Link: "http://example.com/B", Published: time.Time{}.AddDate(0, 0, 2)},
+			{FeedID: feed1.ID, Title: "C", Link: "http://example.com/C", Published: time.Time{}.AddDate(0, 0, 3)},
+		}
+
+		for _, a := range newArticles {
+			u, err := url.Parse(a.Link)
+			if err != nil {
+				t.Fatalf("Parse %q as URL: %v", a.Link, err)
+			}
+
+			_, err = articles.Create(a.FeedID, a.Title, u, a.Published)
+			if err != nil {
+				t.Fatalf("Create Article [%+v]: %v", a, err)
+			}
+		}
+
+		notifications, err := subscriptions.PendingNotifications()
+		if err != nil {
+			t.Fatalf("want err=<nil>, got err=%v when fetching pending notifications", err)
+		}
+
+		type minifiedNotification struct {
+			ServerID  string
+			ChannelID string
+			Link      string
+		}
+
+		outboxes := make(map[int64][]minifiedNotification)
+
+		for _, n := range notifications {
+			mini := minifiedNotification{
+				ServerID:  n.ServerID,
+				ChannelID: n.ChannelID,
+				Link:      n.Link,
+			}
+			outboxes[n.SubscriptionID] = append(outboxes[n.SubscriptionID], mini)
+		}
+
+		want := map[int64][]minifiedNotification{
+			sub1.ID: {
+				{ServerID: "server1", ChannelID: "channel1", Link: "http://example.com/A"},
+				{ServerID: "server1", ChannelID: "channel1", Link: "http://example.com/B"},
+				{ServerID: "server1", ChannelID: "channel1", Link: "http://example.com/C"},
+			},
+			sub2.ID: {
+				{ServerID: "server2", ChannelID: "channel2", Link: "http://example.com/B"},
+				{ServerID: "server2", ChannelID: "channel2", Link: "http://example.com/C"},
+			},
+		}
+
+		if !reflect.DeepEqual(want, outboxes) {
+			t.Fatalf("want [%+v], got [%+v]", want, outboxes)
 		}
 	})
 }
