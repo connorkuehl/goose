@@ -2,18 +2,21 @@ package main
 
 import (
 	"log"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
 
-const defaultAutocompletionExpiry = 15 * time.Second
-
-type autocompletionFingerprint string
+const (
+	autocompleteLimit           = 25
+	defaultAutocompletionExpiry = 15 * time.Second
+)
 
 type AutoCompletions struct {
-	mu      sync.Mutex
-	ac      map[autocompletionFingerprint][]string
-	expires time.Time
+	mu     sync.Mutex
+	ac     map[string]*haystack
+	expiry time.Time
 
 	subscriptions *Subscriptions
 }
@@ -22,27 +25,114 @@ func (ac *AutoCompletions) CollectionNames(serverID, input string) ([]string, er
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
 
-	fingerprint := autocompletionFingerprint(serverID + input)
-
 	now := time.Now()
-	if now.UTC().After(ac.expires.UTC()) {
-		log.Printf("[INFO] Autocompletions have expired")
-		refreshed := make(map[autocompletionFingerprint][]string)
-		ac.ac = refreshed
-		ac.expires = now.Add(defaultAutocompletionExpiry)
+	if now.UTC().After(ac.expiry.UTC()) {
+		ac.ac = make(map[string]*haystack)
+		ac.expiry = now.Add(defaultAutocompletionExpiry)
+		log.Printf("[INFO] Dropping autocomplete cache; next one expires at %v", ac.expiry)
 	}
 
-	completions, ok := ac.ac[fingerprint]
+	lookup, ok := ac.ac[serverID]
 	if !ok {
-		log.Printf("[INFO] Autocompletion cache miss")
-		matches, err := ac.subscriptions.GetCollectionNameAutocompletionsForServer(serverID, input)
+		collections, err := ac.subscriptions.GetCollectionNames(serverID)
 		if err != nil {
 			return nil, err
 		}
 
-		ac.ac[fingerprint] = matches
-		completions = matches
+		h := NewHaystack(collections)
+
+		ac.ac[serverID] = h
+		lookup = h
 	}
 
-	return completions, nil
+	// Just match as much as possible if there's no input.
+	if input == "" {
+		input = "."
+	}
+	input = strings.ToLower(input)
+
+	re, err := regexp.Compile(input)
+	if err != nil {
+		return nil, err
+	}
+
+	suggestions := lookup.FindAll(re)
+	if len(suggestions) > autocompleteLimit {
+		suggestions = suggestions[:autocompleteLimit]
+	}
+
+	return suggestions, nil
+}
+
+type haystack struct {
+	search []byte
+	domain []byte
+	spans  []span
+}
+
+func NewHaystack(s []string) *haystack {
+	domain := strings.Join(s, "")
+	h := &haystack{
+		search: []byte(strings.ToLower(domain)),
+		domain: []byte(domain),
+	}
+
+	next := 0
+	for _, c := range s {
+		s := span{
+			start: next,
+			end:   next + len(c),
+		}
+		h.spans = append(h.spans, s)
+		next += len(c)
+	}
+
+	return h
+}
+
+func (h *haystack) FindAll(re *regexp.Regexp) []string {
+	matches := re.FindAllIndex(h.search, -1)
+
+	set := make(map[string]struct{})
+
+	for _, m := range matches {
+		start, end := m[0], m[1]
+
+		for _, s := range h.spans {
+			if !s.Overlaps(start, end) {
+				continue
+			}
+
+			set[string(h.domain[s.start:s.end])] = struct{}{}
+		}
+	}
+
+	var found []string
+	for k := range set {
+		found = append(found, k)
+	}
+
+	return found
+}
+
+type span struct {
+	start, end int
+}
+
+func (s span) Overlaps(start, end int) bool {
+	min := func(a, b int) int {
+		if a < b {
+			return a
+		}
+		return b
+	}
+
+	max := func(a, b int) int {
+		if a > b {
+			return a
+		}
+		return b
+	}
+
+	return max(s.start, start) < min(s.end, end)
 }

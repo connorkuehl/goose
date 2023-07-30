@@ -8,8 +8,6 @@ import (
 	"github.com/lib/pq"
 )
 
-const collectionNameAutocompleteLimit = 25
-
 type Notification struct {
 	SubscriptionID int64
 	ServerID       string
@@ -78,11 +76,9 @@ func (s *Subscriptions) GetByCollectionName(serverID, collectionName string) (*S
 	return &sub, nil
 }
 
-func (s *Subscriptions) GetCollectionNameAutocompletionsForServer(serverID, fuzzy string) ([]string, error) {
-	stmt := `SELECT collection_name FROM subscriptions WHERE server_id = $1 AND LOWER(collection_name) LIKE '%' || $2 || '%' LIMIT $3`
-	args := []any{serverID, fuzzy, collectionNameAutocompleteLimit}
-
-	var suggestions []string
+func (s *Subscriptions) GetCollectionNames(serverID string) ([]string, error) {
+	stmt := `SELECT collection_name FROM subscriptions WHERE server_id = $1`
+	args := []any{serverID}
 
 	rows, err := s.db.Query(stmt, args...)
 	if err != nil {
@@ -90,15 +86,16 @@ func (s *Subscriptions) GetCollectionNameAutocompletionsForServer(serverID, fuzz
 	}
 	defer rows.Close()
 
+	var collections []string
 	for rows.Next() {
 		var collection string
 		if err := rows.Scan(&collection); err != nil {
 			return nil, err
 		}
-		suggestions = append(suggestions, collection)
+		collections = append(collections, collection)
 	}
 
-	return suggestions, nil
+	return collections, nil
 }
 
 func (s *Subscriptions) Delete(id int64) error {
