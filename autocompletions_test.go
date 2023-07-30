@@ -14,6 +14,7 @@ func TestNewHaystack(t *testing.T) {
 	}{
 		{input: []string{"hello", "world"}, want: &haystack{
 			search: []byte("helloworld"),
+			domain: []byte("helloworld"),
 			spans: []span{
 				{start: 0, end: 5},
 				{start: 5, end: 10},
