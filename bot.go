@@ -80,7 +80,7 @@ func (b *Bot) Subscribe(s *discordgo.Session, i *discordgo.Interaction) {
 	err = b.subscribe(link, i.GuildID, channel.ID, collection)
 	switch {
 	case err == nil:
-		response := fmt.Sprintf("🪿 Affirmative HONK! I'll send new items in the %q collection to #%s", collection, channel.Name)
+		response := fmt.Sprintf("🪿 Affirmative HONK! I'll send new items in the %q collection to %s.", collection, channel.Mention())
 		b.respondToInteraction(s, i, response)
 	case errors.Is(err, ErrAlreadyExists):
 		b.respondToInteraction(s, i, `🪿 Smug HONK! You're already subscribed to that feed.`)
