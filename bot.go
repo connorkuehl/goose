@@ -22,9 +22,10 @@ const (
 )
 
 type Bot struct {
-	articles      *Articles
-	feeds         *Feeds
-	subscriptions *Subscriptions
+	articles        *Articles
+	feeds           *Feeds
+	subscriptions   *Subscriptions
+	autocompletions *AutoCompletions
 
 	rateLimiter *rate.Limiter
 	session     *discordgo.Session
@@ -34,7 +35,7 @@ type Bot struct {
 
 func (b *Bot) AutocompleteCollectionName(s *discordgo.Session, i *discordgo.Interaction, option *discordgo.ApplicationCommandInteractionDataOption) {
 	value := option.StringValue()
-	suggestions, err := b.subscriptions.GetCollectionNameAutocompletionsForServer(i.GuildID, value)
+	suggestions, err := b.autocompletions.CollectionNames(i.GuildID, value)
 	if err != nil {
 		log.Printf("[ERROR] Generating autocompletions for server [%s]: %v", i.GuildID, err)
 		return

@@ -119,11 +119,12 @@ func run(ctx context.Context) error {
 	rateLimiter := rate.NewLimiter(rate.Every(time.Second), 1)
 
 	bot := &Bot{
-		articles:      articles,
-		feeds:         feeds,
-		subscriptions: subscriptions,
-		rateLimiter:   rateLimiter,
-		session:       session,
+		articles:        articles,
+		feeds:           feeds,
+		subscriptions:   subscriptions,
+		autocompletions: &AutoCompletions{subscriptions: subscriptions},
+		rateLimiter:     rateLimiter,
+		session:         session,
 		httpClient: &http.Client{
 			Timeout: 3 * time.Second,
 		},
