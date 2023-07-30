@@ -29,6 +29,8 @@ slash commands.
 Outside of that, goose will automatically announce new items on feeds
 that the server is subscribed to.
 
+![Usage screencast](https://raw.github.com/connorkuehl/goose/static/usage.gif?raw=true)
+
 ## Building
 
 Prerequisites:
