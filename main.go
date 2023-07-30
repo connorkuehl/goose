@@ -130,7 +130,25 @@ func run(ctx context.Context) error {
 	}
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		switch i.ApplicationCommandData().Name {
+		data := i.ApplicationCommandData()
+
+		if i.Type == discordgo.InteractionApplicationCommandAutocomplete {
+			for _, option := range data.Options {
+				if !option.Focused || option.Name != optionCollectionName {
+					continue
+				}
+
+				switch data.Name {
+				case commandUnsubscribe, commandTest:
+					bot.AutocompleteCollectionName(s, i.Interaction, option)
+					return
+				default:
+					return
+				}
+			}
+		}
+
+		switch data.Name {
 		case commandSubscribe:
 			bot.Subscribe(s, i.Interaction)
 		case commandUnsubscribe:

@@ -53,10 +53,11 @@ var (
 			DefaultMemberPermissions: &memberPermissions,
 			Options: []*discordgo.ApplicationCommandOption{
 				{
-					Name:        optionCollectionName,
-					Description: "Collection to unsubscribe from",
-					Type:        discordgo.ApplicationCommandOptionString,
-					Required:    true,
+					Name:         optionCollectionName,
+					Description:  "Collection to unsubscribe from",
+					Type:         discordgo.ApplicationCommandOptionString,
+					Required:     true,
+					Autocomplete: true,
 				},
 			},
 		},
@@ -67,10 +68,11 @@ var (
 			DefaultMemberPermissions: &memberPermissions,
 			Options: []*discordgo.ApplicationCommandOption{
 				{
-					Name:        optionCollectionName,
-					Description: "Collection to test",
-					Type:        discordgo.ApplicationCommandOptionString,
-					Required:    true,
+					Name:         optionCollectionName,
+					Description:  "Collection to test",
+					Type:         discordgo.ApplicationCommandOptionString,
+					Required:     true,
+					Autocomplete: true,
 				},
 			},
 		},

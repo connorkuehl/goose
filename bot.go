@@ -32,6 +32,32 @@ type Bot struct {
 	httpClient *http.Client
 }
 
+func (b *Bot) AutocompleteCollectionName(s *discordgo.Session, i *discordgo.Interaction, option *discordgo.ApplicationCommandInteractionDataOption) {
+	value := option.StringValue()
+	suggestions, err := b.subscriptions.GetCollectionNameAutocompletionsForServer(i.GuildID, value)
+	if err != nil {
+		log.Printf("[ERROR] Generating autocompletions for server [%s]: %v", i.GuildID, err)
+		return
+	}
+
+	var choices []*discordgo.ApplicationCommandOptionChoice
+	for _, suggestion := range suggestions {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  suggestion,
+			Value: suggestion,
+		})
+	}
+
+	err = s.InteractionRespond(i, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionApplicationCommandAutocompleteResult,
+		Data: &discordgo.InteractionResponseData{Choices: choices},
+	})
+	if err != nil {
+		log.Printf("[ERROR] Submitting autocompletions: %v", err)
+		return
+	}
+}
+
 func (b *Bot) Subscribe(s *discordgo.Session, i *discordgo.Interaction) {
 	opts := optionsToMap(i.ApplicationCommandData().Options)
 
