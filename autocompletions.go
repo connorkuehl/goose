@@ -48,6 +48,8 @@ func (ac *AutoCompletions) CollectionNames(serverID, input string) ([]string, er
 	// Just match as much as possible if there's no input.
 	if input == "" {
 		input = "."
+	} else {
+		input = regexp.QuoteMeta(input)
 	}
 	input = strings.ToLower(input)
 
