@@ -1,11 +1,12 @@
 package main
 
 import (
-	"log"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/exp/slog"
 )
 
 const (
@@ -29,7 +30,7 @@ func (ac *AutoCompletions) CollectionNames(serverID, input string) ([]string, er
 	if now.UTC().After(ac.expiry.UTC()) {
 		ac.ac = make(map[string]*haystack)
 		ac.expiry = now.Add(defaultAutocompletionExpiry)
-		log.Printf("[INFO] Dropping autocomplete cache; next one expires at %v", ac.expiry)
+		slog.Info("Evicting autocompletions cache", slog.Time("autocomplete_cache_expires_at", ac.expiry))
 	}
 
 	lookup, ok := ac.ac[serverID]

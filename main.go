@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +14,9 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/lib/pq"
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
+	"golang.org/x/exp/slog"
 	"golang.org/x/time/rate"
 )
 
@@ -22,8 +24,16 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		slog.SetDefault(slog.New(tint.NewHandler(os.Stdout, &tint.Options{
+			TimeFormat: time.Kitchen,
+		})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	}
+
 	if err := run(ctx); err != nil {
-		log.Fatalf("Exiting with error: %v", err)
+		slog.Error("Exiting", "err", err)
 	}
 }
 
@@ -96,7 +106,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("ping database: %w", err)
 	}
 
-	log.Printf("[INFO] Connected to database")
+	slog.Info("Connected to database")
 
 	articles := &Articles{
 		db: db,
@@ -171,7 +181,7 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	log.Printf("[INFO] Connected to Discord")
+	slog.Info("Connected to Discord")
 
 	updateTicker := time.NewTicker(time.Duration(announceDelayIntervalSecs) * time.Second)
 	defer updateTicker.Stop()

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/mmcdole/gofeed"
+	"golang.org/x/exp/slog"
 	"golang.org/x/time/rate"
 )
 
@@ -34,10 +34,21 @@ type Bot struct {
 }
 
 func (b *Bot) AutocompleteCollectionName(s *discordgo.Session, i *discordgo.Interaction, option *discordgo.ApplicationCommandInteractionDataOption) {
+	logger := slog.With(
+		slog.String("request", "autocomplete"),
+		slog.Group("discord",
+			slog.String("interaction_id", i.ID),
+			slog.String("guild_id", i.GuildID),
+			slog.String("channel_id", i.ChannelID),
+		),
+	)
+
+	logger.Info("Incoming Autocomplete request")
+
 	value := option.StringValue()
 	suggestions, err := b.autocompletions.CollectionNames(i.GuildID, value)
 	if err != nil {
-		log.Printf("[ERROR] Generating autocompletions for server [%s]: %v", i.GuildID, err)
+		logger.Error("Generating autocompletions", slog.Any("err", err))
 		return
 	}
 
@@ -54,12 +65,21 @@ func (b *Bot) AutocompleteCollectionName(s *discordgo.Session, i *discordgo.Inte
 		Data: &discordgo.InteractionResponseData{Choices: choices},
 	})
 	if err != nil {
-		log.Printf("[ERROR] Submitting autocompletions: %v", err)
+		logger.Error("Submitting autocompletions", slog.Any("err", err))
 		return
 	}
 }
 
 func (b *Bot) Subscribe(s *discordgo.Session, i *discordgo.Interaction) {
+	logger := slog.With(
+		slog.String("request", "subscribe"),
+		slog.Group("discord",
+			slog.String("interaction_id", i.ID),
+			slog.String("guild_id", i.GuildID),
+			slog.String("channel_id", i.ChannelID),
+		),
+	)
+
 	opts := optionsToMap(i.ApplicationCommandData().Options)
 
 	feed := opts[optionFeed]
@@ -67,7 +87,7 @@ func (b *Bot) Subscribe(s *discordgo.Session, i *discordgo.Interaction) {
 	if err != nil || !strings.Contains(link.Scheme, "http") {
 		err := b.respondToInteraction(s, i, `🪿 cOnFuSeD hOnK! Is that a valid URL?`)
 		if err != nil {
-			log.Printf("[ERROR] Failed to respond: %v", err)
+			logger.Error("Respond to interaction", slog.Any("err", err))
 		}
 		return
 	}
@@ -75,31 +95,49 @@ func (b *Bot) Subscribe(s *discordgo.Session, i *discordgo.Interaction) {
 	channel := opts[optionChannel].ChannelValue(s)
 	collection := opts[optionCollectionName].StringValue()
 
+	logger = logger.With(slog.Group(
+		"args",
+		slog.String("channel", channel.ID),
+		slog.String("collection", collection),
+	))
+
+	logger.Info("Incoming Subscribe request")
+
 	var httpErr *ErrHTTP
+
+	respond := func(msg string) {
+		if err := b.respondToInteraction(s, i, msg); err != nil {
+			logger.Error("Responding to interaction", slog.Any("err", err))
+			return
+		}
+		logger.Info("Responded to Subscribe request")
+	}
 
 	err = b.subscribe(link, i.GuildID, channel.ID, collection)
 	switch {
 	case err == nil:
 		response := fmt.Sprintf("🪿 Affirmative HONK! I'll send new items in the %q collection to %s.", collection, channel.Mention())
-		b.respondToInteraction(s, i, response)
+		respond(response)
 	case errors.Is(err, ErrAlreadyExists):
-		b.respondToInteraction(s, i, `🪿 Smug HONK! You're already subscribed to that feed.`)
+		respond(`🪿 Smug HONK! You're already subscribed to that feed.`)
 	case errors.Is(err, ErrNotRSSFeed):
-		b.respondToInteraction(s, i, `🪿 cOnFuSeD hOnK! There doesn't seem to be a valid RSS feed at that URL.`)
+		respond(`🪿 cOnFuSeD hOnK! There doesn't seem to be a valid RSS feed at that URL.`)
 	case errors.As(err, &httpErr):
 		switch {
 		case httpErr.StatusCode == http.StatusUnauthorized:
-			b.respondToInteraction(s, i, `🪿 rebuked honk. The website requires authorization to view that page.`)
+			respond(`🪿 rebuked honk. The website requires authorization to view that page.`)
 		case httpErr.StatusCode == http.StatusForbidden:
-			b.respondToInteraction(s, i, `🪿 rebuked honk. The website said viewing that resource is forbidden.`)
+			respond(`🪿 rebuked honk. The website said viewing that resource is forbidden.`)
 		case httpErr.StatusCode == http.StatusNotFound:
-			b.respondToInteraction(s, i, `🪿 lost honk. The website said there's nothing to be found at that URL.`)
+			respond(`🪿 lost honk. The website said there's nothing to be found at that URL.`)
 		case httpErr.StatusCode >= 500:
-			b.respondToInteraction(s, i, `🪿 Advisory honk: that website seems to be having issues, try adding this again later.`)
+			respond(`🪿 Advisory honk: that website seems to be having issues, try adding this again later.`)
 		default:
-			b.respondToInteraction(s, i, `🪿 sad honk. I couldn't fetch that feed but it's my fault, so this could be a bug.`)
+			logger.Error("Unexpected HTTP error", slog.Int("http_status_code", httpErr.StatusCode))
+			respond(`🪿 sad honk. I couldn't fetch that feed but it's my fault, so this could be a bug.`)
 		}
 	default:
+		logger.Error("Internal error", slog.Any("err", err))
 		b.respondInternalError(s, i)
 	}
 }
@@ -111,14 +149,12 @@ func (b *Bot) subscribe(link *url.URL, serverID, channelID, collection string) e
 	if errors.Is(err, ErrNotFound) {
 		req, err := http.NewRequest(http.MethodGet, link.String(), strings.NewReader(""))
 		if err != nil {
-			log.Printf("[ERROR] Form GET [%s]: %v", link.String(), err)
-			return err
+			return fmt.Errorf("http new request: %w", err)
 		}
 
 		rsp, err := b.httpClient.Do(req)
 		if err != nil {
-			log.Printf("[WARN] GET [%s]: %v", link.String(), err)
-			return err
+			return fmt.Errorf("http get feed: %w", err)
 		}
 		defer rsp.Body.Close()
 
@@ -137,39 +173,55 @@ func (b *Bot) subscribe(link *url.URL, serverID, channelID, collection string) e
 
 		feed, err = b.feeds.Create(link, notUntil)
 		if err != nil {
-			log.Printf("[ERROR] Create Feed: %v", err)
-			return err
+			return fmt.Errorf("create feed: %w", err)
 		}
 
 		err = b.refreshFeed(feed, feedContents, time.Time{})
 		if err != nil {
-			log.Printf("[ERROR] Refresh Feed [%d]: %v", feed.ID, err)
+			return fmt.Errorf("refresh feed: %w", err)
 		}
 	}
 
 	_, err = b.subscriptions.Create(feed.ID, serverID, channelID, collection, now)
 	if err != nil && !errors.Is(err, ErrAlreadyExists) {
-		log.Printf("[ERROR] subscriptions.Create: %v", err)
-		return err
+		return fmt.Errorf("create subscription: %w", err)
 	}
 
 	return nil
 }
 
 func (b *Bot) Unsubscribe(s *discordgo.Session, i *discordgo.Interaction) {
+	logger := slog.With(
+		slog.String("request", "unsubscribe"),
+		slog.Group("discord",
+			slog.String("interaction_id", i.ID),
+			slog.String("guild_id", i.GuildID),
+			slog.String("channel_id", i.ChannelID),
+		),
+	)
+
 	opts := optionsToMap(i.ApplicationCommandData().Options)
 	collection := opts[optionCollectionName].StringValue()
+
+	logger = logger.With(slog.Group("args",
+		slog.String("collection", collection),
+	))
+
+	logger.Info("Incoming Unsubscribe request")
 
 	err := b.unsubscribe(i.GuildID, collection)
 	if errors.Is(err, ErrNotFound) {
 		response := fmt.Sprintf("🪿 lost honk. I couldn't find a subscription with the collection name %q", collection)
 		err := b.respondToInteraction(s, i, response)
 		if err != nil {
-			log.Printf("[ERROR] Responding to response failed: %v", err)
+			logger.Error("Responding to interaction", slog.Any("err", err))
 		}
+
+		logger.Info("Responded to Unsubscribe request")
+		return
 	}
 	if err != nil {
-		log.Printf("[ERROR] unsubscribe: %v", err)
+		logger.Error("Unsubscribe", slog.Any("err", err))
 		b.respondInternalError(s, i)
 		return
 	}
@@ -177,9 +229,10 @@ func (b *Bot) Unsubscribe(s *discordgo.Session, i *discordgo.Interaction) {
 	response := fmt.Sprintf("🪿 Affirmative HONK! I removed the subscription to %q", collection)
 	err = b.respondToInteraction(s, i, response)
 	if err != nil {
-		log.Printf("[ERROR] Responding to response failed: %v", err)
+		logger.Error("Responding to interaction", slog.Any("err", err))
 		return
 	}
+	logger.Info("Responded to Unsubscribe request")
 }
 
 func (b *Bot) unsubscribe(serverID, collectionName string) error {
@@ -192,38 +245,56 @@ func (b *Bot) unsubscribe(serverID, collectionName string) error {
 }
 
 func (b *Bot) Test(s *discordgo.Session, i *discordgo.Interaction) {
+	logger := slog.With(
+		slog.String("request", "test"),
+		slog.Group("discord",
+			slog.String("interaction_id", i.ID),
+			slog.String("guild_id", i.GuildID),
+			slog.String("channel_id", i.ChannelID),
+		),
+	)
+
 	opts := optionsToMap(i.ApplicationCommandData().Options)
 	collection := opts[optionCollectionName].StringValue()
+
+	logger = logger.With(slog.Group("args",
+		slog.String("collection", collection),
+	))
+
+	logger.Info("Incoming Test request")
 
 	link, err := b.test(i.GuildID, collection)
 	switch {
 	case err == nil:
 		err = b.rateLimiter.Wait(context.Background())
 		if err != nil {
-			log.Printf("[WARN] Waiting for rate limit: %v", err)
+			logger.Warn("Waiting for rate limit", slog.Any("err", err))
 			return
 		}
 
 		message := fmt.Sprintf("🪿 TEST HONK! Here's the latest item from the %q collection: %s", collection, link)
 		err := b.respondToInteraction(s, i, message)
 		if err != nil {
-			log.Printf("[ERROR] Failed to respond to interaction: %v", err)
+			logger.Error("Responding to interaction", slog.Any("err", err))
 			return
 		}
+		logger.Info("Responded to Test")
 	case errors.Is(err, ErrNotFound):
 		message := "🪿 NEGATIVE HONK! Did not find a collection with that name."
 		err := b.respondToInteraction(s, i, message)
 		if err != nil {
-			log.Printf("[ERROR] Failed to respond to interaction: %v", err)
+			logger.Error("Responding to interaction", slog.Any("err", err))
 			return
 		}
+		logger.Info("Responded to Test")
 	case errors.Is(err, ErrEmptyFeed):
 		message := "🪿 sad honk... There are no items in that RSS feed."
 		err := b.respondToInteraction(s, i, message)
 		if err != nil {
-			log.Printf("[ERROR] Failed to respond to interaction: %v", err)
+			logger.Error("Responding to interaction", slog.Any("err", err))
 			return
 		}
+		logger.Info("Responded to Test")
 	default:
 		b.respondInternalError(s, i)
 	}
@@ -247,18 +318,34 @@ func (b *Bot) test(serverID, collectionName string) (string, error) {
 }
 
 func (b *Bot) Update(ctx context.Context) error {
+	logger := slog.With(
+		slog.String("action", "update"),
+	)
+
 	nots, err := b.subscriptions.PendingNotifications()
 	if err != nil {
-		log.Printf("[ERROR] subscriptions.PendingNotifications: %v", err)
+		logger.Error("Fetching notifications", slog.Any("err", err))
 		return err
 	}
 
 	if len(nots) == 0 {
-		log.Printf("[INFO] No pending notifications to send out")
+		logger.Info("No pending notifications to send out")
 		return nil
 	}
 
 	for _, n := range nots {
+		logger = logger.With(
+			slog.Group("subscription",
+				slog.Int64("id", n.SubscriptionID),
+				slog.String("server_id", n.ServerID),
+				slog.String("channel_id", n.ChannelID),
+				slog.String("collection", n.CollectionName),
+			),
+			slog.Group("article",
+				slog.Int("id", int(n.ArticleID)),
+			),
+		)
+
 		err := b.rateLimiter.Wait(ctx)
 		if err != nil {
 			return err
@@ -267,15 +354,15 @@ func (b *Bot) Update(ctx context.Context) error {
 		message := fmt.Sprintf("🪿 HONK! New item from collection %q: %s", n.CollectionName, n.Link)
 		_, err = b.session.ChannelMessageSend(n.ChannelID, message)
 		if err != nil {
-			log.Printf("[ERROR] session.ChannelMessageSend: %v", err)
+			logger.Error("Sending message to channel", slog.Any("err", err))
 			continue
 		}
 
-		log.Printf("[INFO] Notified Subscription [%d] of new Article [%d]", n.SubscriptionID, n.ArticleID)
+		logger.Info("Notification sent")
 
 		err = b.subscriptions.UpdateLastPubDate(n.SubscriptionID, n.PubDate)
 		if err != nil {
-			log.Printf("[ERROR] Update pub_date for Subscription [%d]: %v", n.SubscriptionID, err)
+			logger.Error("Updating last publish date", slog.Any("err", err))
 			continue
 		}
 	}
@@ -284,6 +371,10 @@ func (b *Bot) Update(ctx context.Context) error {
 }
 
 func (b *Bot) RefreshFeeds(ctx context.Context) error {
+	logger := slog.With(
+		slog.String("action", "refresh"),
+	)
+
 	now := time.Now().UTC()
 
 	feeds, err := b.feeds.ListReady(now)
@@ -292,22 +383,28 @@ func (b *Bot) RefreshFeeds(ctx context.Context) error {
 	}
 
 	if len(feeds) == 0 {
-		log.Printf("[INFO] No eligible feeds to refresh")
+		logger.Info("No eligible feeds to refresh")
 		return nil
 	}
 
-	log.Printf("[INFO] Refreshing %d eligible feeds", len(feeds))
+	logger.With("num_feeds", len(feeds)).Info("Refreshing eligible feeds")
 
 	for _, feed := range feeds {
+		logger = logger.With(
+			slog.String("request_url", feed.Link),
+			slog.Group("feed",
+				slog.Int64("id", feed.ID)),
+		)
+
 		req, err := http.NewRequest(http.MethodGet, feed.Link, strings.NewReader(""))
 		if err != nil {
-			log.Printf("[WARN] Form GET [%s]: %v", feed.Link, err)
+			logger.Error("http.NewRequest", slog.Any("err", err))
 			continue
 		}
 
 		rsp, err := b.httpClient.Do(req)
 		if err != nil {
-			log.Printf("[WARN] GET [%s]: %v", feed.Link, err)
+			logger.Error("Fetching remote feed", slog.Any("err", err))
 			continue
 		}
 		defer rsp.Body.Close()
@@ -317,13 +414,15 @@ func (b *Bot) RefreshFeeds(ctx context.Context) error {
 		feed.NotUntil = notUntil
 		err = b.feeds.Update(&feed)
 		if err != nil {
-			log.Printf("[ERROR] Update not_until [%v] for Feed [%d]: %v", feed.NotUntil, feed.ID, err)
+			logger.With(
+				slog.Time("not_until", feed.NotUntil),
+			).Error("Updating not_until for feed", slog.Any("err", err))
 			continue
 		}
 
 		feedContents, err := gofeed.NewParser().Parse(rsp.Body)
 		if err != nil {
-			log.Printf("[ERROR] Parse Feed [%d] at %s: %v", feed.ID, feed.Link, err)
+			logger.Error("Parsing feed", slog.Any("err", err))
 			continue
 		}
 
@@ -331,15 +430,12 @@ func (b *Bot) RefreshFeeds(ctx context.Context) error {
 		if article, err := b.articles.Latest(feed.ID); err == nil {
 			latestPub = article.Published
 		} else if !errors.Is(err, ErrNotFound) {
-			log.Printf("[ERROR] Get latest article for Feed [%d]: %v", feed.ID, err)
-		} else {
-			log.Printf("[ERROR] articles.Latest: %v", err)
-			continue
+			logger.Error("Getting latest article for feed", slog.Any("err", err))
 		}
 
 		err = b.refreshFeed(&feed, feedContents, latestPub)
 		if err != nil {
-			log.Printf("[ERROR] Refresh Feed [%d]: %v", feed.ID, err)
+			logger.Info("Refreshing feed", slog.Any("err", err))
 			continue
 		}
 	}
@@ -348,6 +444,14 @@ func (b *Bot) RefreshFeeds(ctx context.Context) error {
 }
 
 func (b *Bot) refreshFeed(feed *Feed, feedContents *gofeed.Feed, since time.Time) error {
+	logger := slog.With(
+		slog.String("action", "refresh"),
+		slog.Group("feed",
+			slog.Int64("id", feed.ID),
+			slog.String("link", feed.Link),
+		),
+	)
+
 	sort.Sort(feedContents)
 
 	for _, item := range feedContents.Items {
@@ -361,7 +465,7 @@ func (b *Bot) refreshFeed(feed *Feed, feedContents *gofeed.Feed, since time.Time
 
 		u, err := url.Parse(item.Link)
 		if err != nil {
-			log.Printf("[WARN] Parse URL for item in Feed [%d]: %v", feed.ID, err)
+			logger.Warn("Parsing URL", slog.Any("err", err))
 			continue
 		}
 
@@ -370,20 +474,30 @@ func (b *Bot) refreshFeed(feed *Feed, feedContents *gofeed.Feed, since time.Time
 			continue
 		}
 		if err != nil {
-			log.Printf("[ERROR] Add new Article for Feed [%d]: %v", feed.ID, err)
+			logger.Error("Adding new article for feed", slog.Any("err", err))
 			continue
 		}
 
-		log.Printf("[INFO] Added Article [%d] for Feed [%d]", article.ID, feed.ID)
+		logger.With(
+			slog.Group("article",
+				slog.Int64("id", article.ID),
+			),
+		).Info("Added article for feed")
 	}
 
 	return nil
 }
 
 func (b *Bot) respondInternalError(s *discordgo.Session, i *discordgo.Interaction) {
+	logger := slog.With(
+		slog.Group("discord",
+			slog.String("interaction_id", i.ID),
+			slog.String("guild_id", i.GuildID),
+			slog.String("channel_id", i.ChannelID),
+		))
 	err := b.respondToInteraction(s, i, `🪿 ashamed honk. I ran into an issue processing this request. I have failed you. This might be a bug.`)
 	if err != nil {
-		log.Printf("[ERROR] Responding with internal error failed: %v", err)
+		logger.Error("Responding to interaction with internal error", slog.Any("err", err))
 	}
 }
 
