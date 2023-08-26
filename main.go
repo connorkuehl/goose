@@ -97,7 +97,9 @@ func run(ctx context.Context) error {
 	}
 	defer db.Close()
 
+	connStartDB := time.Now()
 	err = func() error {
+		slog.Info("Connecting to database")
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 		return db.PingContext(ctx)
@@ -106,7 +108,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("ping database: %w", err)
 	}
 
-	slog.Info("Connected to database")
+	slog.With(slog.Duration("duration", time.Since(connStartDB))).Info("Connected to database")
 
 	articles := &Articles{
 		db: db,
@@ -169,6 +171,7 @@ func run(ctx context.Context) error {
 		}
 	})
 
+	connStartDisc := time.Now()
 	err = session.Open()
 	if err != nil {
 		return err
@@ -181,7 +184,7 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	slog.Info("Connected to Discord")
+	slog.With("duration", time.Since(connStartDisc)).Info("Connected to Discord")
 
 	updateTicker := time.NewTicker(time.Duration(announceDelayIntervalSecs) * time.Second)
 	defer updateTicker.Stop()
