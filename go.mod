@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/bwmarrin/discordgo v0.27.1
 	github.com/lib/pq v1.10.9
-	github.com/lmittmann/tint v0.3.4
+	github.com/lmittmann/tint v1.0.1
 	github.com/mattn/go-isatty v0.0.19
 	github.com/mmcdole/gofeed v1.2.1
 	golang.org/x/exp v0.0.0-20230807204917-050eac23e9de

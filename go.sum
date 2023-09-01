@@ -14,8 +14,8 @@ github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnr
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/lib/pq v1.10.9 h1:YXG7RB+JIjhP29X+OtkiDnYaXQwpS4JEWq7dtCCRUEw=
 github.com/lib/pq v1.10.9/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
-github.com/lmittmann/tint v0.3.4 h1:QOr2U9GKQfNsNhKPhL7PexQm0mqkRmvuy1UrZb6AidM=
-github.com/lmittmann/tint v0.3.4/go.mod h1:vYasuAV5qbz2TYeUK+sj8iURGIl9T/WOlh4qzYGP16I=
+github.com/lmittmann/tint v1.0.1 h1:qBZR+K8XzaVFvhHvvZ7t63oQ3FuzDKa6TuCRujASxK8=
+github.com/lmittmann/tint v1.0.1/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
 github.com/mattn/go-isatty v0.0.19 h1:JITubQf0MOLdlGRuRq+jtsDlekdYPia9ZFsB8h/APPA=
 github.com/mattn/go-isatty v0.0.19/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mmcdole/gofeed v1.2.1 h1:tPbFN+mfOLcM1kDF1x2c/N68ChbdBatkppdzf/vDe1s=
