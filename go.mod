@@ -9,7 +9,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mmcdole/gofeed v1.2.1
 	golang.org/x/exp v0.0.0-20230807204917-050eac23e9de
-	golang.org/x/time v0.3.0
+	golang.org/x/time v0.5.0
 )
 
 require (
